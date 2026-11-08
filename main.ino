@@ -29,10 +29,10 @@ Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
 #define JOY_Y   35
 #define JOY_BTN 32
 
-#define CHAT_H     58     // zona de chat   y: 0..57
-#define SLIDER_Y   60     // slider mod     y: 60..68
-#define INPUT_Y    70     // bara de text   y: 70..81
-#define KB_Y       84     // tastatura      y: 84..127
+#define CHAT_H     58     // chat zone      y: 0..57
+#define SLIDER_Y   60     // slider         y: 60..68
+#define INPUT_Y    70     // text bar       y: 70..81
+#define KB_Y       84     // keyboard       y: 84..127
 #define KEY_H      10
 #define KEY_STEP   11
 #define MAX_CHARS_PER_LINE 15
@@ -62,8 +62,8 @@ int msgCount = 0;
 String textIntrodus = "";
 int modImagine = 0;          // 0 = text, 1 = foto
 
-int kr = 0;                  // rand cursor (-1 = scroll chat)
-int kc = 0;                  // coloana cursor
+int kr = 0;                  // cursor row (-1 = scroll chat)
+int kc = 0;                  // cursor column
 int scrollPx = 0;
 
 GFXcanvas16* canvas = nullptr;
@@ -241,7 +241,7 @@ void drawChat() {
         canvas->setCursor(20, 22);
         canvas->print("write a message");
         canvas->setCursor(14, 34);
-        canvas->print("cu joystick+click");
+        canvas->print("with joystick+click");
     }
 
     if (scrollPx < maxScroll) {
@@ -337,7 +337,7 @@ void drawKey(int r, int c, bool sel) {
         }
     } else {
         spec = true;
-        if (c == 0)      label = "MOD";
+        if (c == 0)      label = "MODE";
         else if (c == 1) label = "space";
         else             label = "SEND";
     }
@@ -379,7 +379,7 @@ String intreabaGroq(String promptUser, bool& ok) {
     ok = false;
 
     if (WiFi.status() != WL_CONNECTED) {
-        return "WiFi deconectat";
+        return "WiFi disconnected";
     }
 
     WiFiClientSecure client;
@@ -389,7 +389,7 @@ String intreabaGroq(String promptUser, bool& ok) {
     http.setTimeout(30000);
 
     if (!http.begin(client, cloudEndpoint)) {
-        return "http.begin esuat";
+        return "http.begin failed";
     }
 
     DynamicJsonDocument doc(4096);
@@ -401,7 +401,7 @@ String intreabaGroq(String promptUser, bool& ok) {
 
     String prompt =
         "in english shortly explained "
-        "propozition maximum 50 words: "
+        "sentence must be made of maximum 50 words: "
         + promptUser;
 
     msg["content"] = prompt;
@@ -464,7 +464,7 @@ String intreabaGroq(String promptUser, bool& ok) {
     textFinal = stripDiacritics(textFinal);
 
     if (textFinal.length() == 0) {
-        String diag = "Raspuns gol";
+        String diag = "Empty answer";
         if (firstChoice.containsKey("finish_reason")) {
             diag += " (";
             diag += firstChoice["finish_reason"].as<String>();
@@ -482,7 +482,7 @@ String genereazaImagine(String promptUser, bool& ok) {
     ok = false;
 
     if (WiFi.status() != WL_CONNECTED) {
-        return "WiFi deconectat";
+        return "WiFi disconnected";
     }
 
     WiFiClientSecure client;
@@ -502,15 +502,15 @@ String genereazaImagine(String promptUser, bool& ok) {
         "&seed=" +
         String(seedAleatoriu);
 
-    Serial.println("URL IMAGINE:");
+    Serial.println("IMAGE URL:");
     Serial.println(urlComplet);
 
     if (!http.begin(client, urlComplet)) {
-        return "Nu pot deschide URL";
+        return "Can't open URL";
     }
 
     http.setTimeout(40000);
-    http.useHTTP10(true);   // fara chunked, ca sa citim JPEG curat
+    http.useHTTP10(true);   // without chunked, so that we can read clean JPEG
     http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
 
     int httpCode = http.GET();
@@ -520,7 +520,7 @@ String genereazaImagine(String promptUser, bool& ok) {
 
     if (httpCode != 200) {
         http.end();
-        return "Imagine HTTP " + String(httpCode);
+        return "HTTP Image " + String(httpCode);
     }
 
     const size_t maxBufSize = 32768;
@@ -528,10 +528,10 @@ String genereazaImagine(String promptUser, bool& ok) {
 
     if (jpgBuffer == NULL) {
         http.end();
-        return "Memorie insuficienta";
+        return "Insufficient memory";
     }
 
-    int totalLen = http.getSize();   // -1 daca nu se stie
+    int totalLen = http.getSize();   // -1 if it isnt known
     WiFiClient* stream = http.getStreamPtr();
 
     size_t bytesRead = 0;
@@ -562,7 +562,7 @@ String genereazaImagine(String promptUser, bool& ok) {
 
     if (bytesRead < 100) {
         free(jpgBuffer);
-        return "Nu s-au primit date";
+        return "Data wasn't recieved";
     }
 
     tft.fillScreen(C_BG);
@@ -574,22 +574,22 @@ String genereazaImagine(String promptUser, bool& ok) {
 
     if (result != 0) {
         free(jpgBuffer);
-        return "Decodare JPEG esuata";
+        return "Decoding of JPEG failed";
     }
 
-    // imaginea sta in RAM + pe ecran 10 secunde
+    // image stays in RAM + on screen for 10 seconds
     delay(10000);
 
-    // stergere din RAM
+    // clearing from RAM
     free(jpgBuffer);
     jpgBuffer = NULL;
 
     ok = true;
-    return "[foto generata]";
+    return "[image generated]";
 }
 
 // ============================================================
-// TRIMITERE MESAJ
+// MESSAGE SENT
 // ============================================================
 void sendMessage() {
     textIntrodus.trim();
@@ -614,17 +614,17 @@ void sendMessage() {
     String rezultat;
 
     if (modImagine == 1) {
-        drawInput("Generez foto...");
+        drawInput("Generating image...");
         rezultat = genereazaImagine(prompt, ok);
     } else {
-        drawInput("Astept AI...");
+        drawInput("Waiting for AI...");
         rezultat = intreabaGroq(prompt, ok);
     }
 
     if (ok) {
         addMsg(false, rezultat);
     } else {
-        addMsg(false, String("EROARE: ") + stripDiacritics(rezultat));
+        addMsg(false, String("ERROR: ") + stripDiacritics(rezultat));
     }
 
     kr = 3;
@@ -636,7 +636,7 @@ void sendMessage() {
 
 void moveCursor(int dx, int dy) {
 
-    // ---------------- mod scroll chat ----------------
+    // ---------------- chat scroll mode ----------------
     if (kr == -1) {
         if (dy < 0) {
             scrollPx += 12;
@@ -739,13 +739,13 @@ void setup() {
     tft.setCursor(2, 20);
     tft.setTextColor(ST77XX_CYAN);
     tft.setTextSize(1);
-    tft.println("Conectare WiFi...");
+    tft.println("Connecting to WiFi...");
 
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid, password);
 
     Serial.println();
-    Serial.println("Conectare WiFi...");
+    Serial.println("Connecting to WiFi...");
 
     while (WiFi.status() != WL_CONNECTED) {
         delay(500);
@@ -753,20 +753,20 @@ void setup() {
     }
 
     Serial.println();
-    Serial.println("WiFi conectat!");
+    Serial.println("WiFi connected!");
     Serial.print("IP: ");
     Serial.println(WiFi.localIP());
 
     tft.fillScreen(ST77XX_BLACK);
     tft.setCursor(2, 20);
     tft.setTextColor(ST77XX_GREEN);
-    tft.println("WiFi conectat!");
+    tft.println("WiFi connected!");
     delay(1000);
 
     tft.fillScreen(ST77XX_BLACK);
     tft.setCursor(2, 20);
     tft.setTextColor(ST77XX_GREEN);
-    tft.println("Sincronizare timp...");
+    tft.println("Syncing time...");
 
     configTime(2 * 3600, 0, "pool.ntp.org", "time.nist.gov");
 
@@ -778,7 +778,7 @@ void setup() {
         now = time(nullptr);
     }
 
-    Serial.println("Sincronizare timp terminata.");
+    Serial.println("Time syncing done.");
 
     TJpgDec.setJpgScale(1);
     TJpgDec.setCallback(tft_output);
